@@ -14,38 +14,38 @@
  * Иногда промисы от API будут приходить в состояние rejected, (прямо как и API в реальной жизни)
  * Ответ будет приходить в поле {result}
  */
- import Api from '../tools/api';
+import { allPass, andThen, compose, curry, gt, ifElse, length, lt, lte, pipe, prop, tap, test } from 'ramda'
+import Api from '../tools/api'
 
- const api = new Api();
+const api = new Api()
+const get = curry(prop('get')(api))
+const getNumber = get('https://api.tech/numbers/base')
+const getAnimal = (id) => get('https://animals.tech/' + id, {})
 
- /**
-  * Я – пример, удали меня
-  */
- const wait = time => new Promise(resolve => {
-     setTimeout(resolve, time);
- })
+const greaterThenTwo = compose(lt(2), length)
+const lessThenTen = compose(gt(10), length)
+const isPositive = compose(lte(0), Number)
+const correctSymbols = test(/^[\d.]+$/gi)
 
- const processSequence = ({value, writeLog, handleSuccess, handleError}) => {
-     /**
-      * Я – пример, удали меня
-      */
-     writeLog(value);
+const round = prop('round')(Math)
 
-     api.get('https://api.tech/numbers/base', {from: 2, to: 10, number: '01011010101'}).then(({result}) => {
-         writeLog(result);
-     });
+const validate = allPass([greaterThenTwo, lessThenTen, isPositive, correctSymbols])
+const validationPipe = (...fns) => ifElse(validate, pipe(...fns), () => Promise.reject('ValidationError'))
 
-     wait(2500).then(() => {
-         writeLog('SecondLog')
+const fetchData = (callback) => pipe(callback, andThen(prop('result')))
+const fromTenthToBinary = (value) => getNumber({ from: 10, to: 2, number: value })
+const sqr = (value) => Math.pow(value, 2)
+const del3 = (value) => value % 3
 
-         return wait(1500);
-     }).then(() => {
-         writeLog('ThirdLog');
+const processSequence = ({ value, writeLog, handleSuccess, handleError }) => {
+	return pipe(
+		tap(writeLog),
+		validationPipe(pipe(round, tap(writeLog), fetchData(fromTenthToBinary)))
+	)(value)
+		.then(pipe(tap(writeLog), length, tap(writeLog), sqr, tap(writeLog), del3, tap(writeLog)))
+		.then(fetchData(getAnimal))
+		.then(handleSuccess)
+		.catch(handleError)
+}
 
-         return wait(400);
-     }).then(() => {
-         handleSuccess('Done');
-     });
- }
-
-export default processSequence;
+export default processSequence
